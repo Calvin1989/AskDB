@@ -1,0 +1,18 @@
+# 跑评测：mvn spring-boot:run -Dspring-boot.run.profiles=eval
+spring:
+  main:
+    web-application-type: none   # 不启动 Web 服务，跑完自动退出
+
+askdb:
+  eval:
+    # 题集：cases = 调参集（平时改提示词就看它）；test-cases = 考核集（只在阶段节点跑，不看错因）
+    cases: classpath:eval/${ASKDB_EVAL_SET:cases}.json
+    # 跑几次：模型输出不完全固定，记录到简历上的数字建议跑 3 次取平均
+    repeat: ${ASKDB_EVAL_REPEAT:1}
+    output-dir: eval-results
+  # 评测必须每题都真正调一次模型，否则准确率和耗时都不真实
+  cache:
+    enabled: false
+  # 评测有自己的报告（eval-results/），不写进调用日志，免得和真实用户的提问混在一起
+  query-log:
+    enabled: false

@@ -1,0 +1,19 @@
+target/
+eval-results/
+data/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.log
+.env
+
+# 本地私密配置：数据库密码、模型 API Key
+askdb-local.yml
+askdb-llm.json
+askdb-llm.json.tmp
+
+# 前端
+askdb-web/node_modules/
+# 前端打包结果（npm run build 生成，不提交）
+src/main/resources/static/

@@ -1,0 +1,15 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="评测 考核集 完整版 ×3" type="Application" factoryName="Application">
+    <envs>
+      <env name="ASKDB_EVAL_SET" value="test-cases" />
+      <env name="ASKDB_EVAL_REPEAT" value="3" />
+    </envs>
+    <option name="MAIN_CLASS_NAME" value="com.askdb.AskDbApplication" />
+    <module name="askdb" />
+    <option name="VM_PARAMETERS" value="-Dspring.profiles.active=eval" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

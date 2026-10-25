@@ -1,0 +1,50 @@
+[
+  {
+    "term": "客户数",
+    "keywords": ["客户"],
+    "definition": "统计客户人数要按 customers.customer_unique_id 去重计数。customer_id 是每个订单一个，同一个人多次下单会有多个，不能用来数人。",
+    "tables": ["customers"]
+  },
+  {
+    "term": "复购客户",
+    "keywords": ["复购", "回头客", "重复购买", "多次购买"],
+    "definition": "下过 2 个及以上订单的客户：customers 和 orders 按 customer_id 关联，按 customers.customer_unique_id 分组，COUNT(DISTINCT orders.order_id) >= 2。",
+    "tables": ["customers", "orders"]
+  },
+  {
+    "term": "GMV",
+    "keywords": ["gmv", "成交额", "成交总额", "交易总额"],
+    "definition": "订单商品价格 order_items.price 之和，不含运费 freight_value；排除 orders.order_status 为 canceled、unavailable 的订单；按 orders.order_purchase_timestamp 判断属于哪个时间段。",
+    "tables": ["orders", "order_items"]
+  },
+  {
+    "term": "客单价",
+    "keywords": ["客单价", "平均订单金额", "每单平均支付"],
+    "definition": "总支付金额除以订单数：SUM(order_payments.payment_value) / COUNT(DISTINCT order_payments.order_id)。需要限定时间时，关联 orders 按 order_purchase_timestamp 筛选。",
+    "tables": ["order_payments", "orders"]
+  },
+  {
+    "term": "配送天数",
+    "keywords": ["配送天数", "配送时间", "配送时长", "送达天数", "几天送达", "多少天送达"],
+    "definition": "签收日期减下单日期：DATEDIFF(orders.order_delivered_customer_date, orders.order_purchase_timestamp)，只统计 order_status = 'delivered' 且 order_delivered_customer_date 不为空的订单。",
+    "tables": ["orders"]
+  },
+  {
+    "term": "延迟送达",
+    "keywords": ["延迟", "延误", "晚于预计", "逾期"],
+    "definition": "签收时间晚于预计送达时间：orders.order_delivered_customer_date > orders.order_estimated_delivery_date。",
+    "tables": ["orders"]
+  },
+  {
+    "term": "差评率",
+    "keywords": ["差评"],
+    "definition": "评分 1 到 2 分算差评（order_reviews.review_score <= 2）；差评率 = 差评条数 / 评价总条数，结果是 0 到 1 之间的小数。",
+    "tables": ["order_reviews"]
+  },
+  {
+    "term": "活跃卖家",
+    "keywords": ["活跃卖家", "活跃的卖家"],
+    "definition": "统计期内（按 orders.order_purchase_timestamp）卖出过至少一件商品的卖家，按 order_items.seller_id 去重计数。",
+    "tables": ["order_items", "orders"]
+  }
+]

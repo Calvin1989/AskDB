@@ -1,0 +1,14 @@
+# 本地私密配置示例。复制一份改名为 askdb-local.yml（同一目录），填上自己的值。
+# askdb-local.yml 已加入 .gitignore，不会提交到 Git。
+# 这里的写法和环境变量同名，填了就不用再在 IDEA 里配环境变量。
+
+# 只读账号 askdb_reader 的密码（服务和评测运行时用）。密码里有 # : 等符号时，用英文引号括起来
+DB_PASSWORD: 改成你的密码
+
+# root 密码（只在导入数据、建只读账号时用）
+DB_ADMIN_PASSWORD: 改成你的密码
+
+# 模型 API Key：也可以不写在这里，启动后在页面左下角"模型设置"里填
+# LLM_API_KEY: sk-...
+# LLM_BASE_URL: https://api.deepseek.com
+# LLM_MODEL: deepseek-chat

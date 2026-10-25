@@ -1,0 +1,37 @@
+### 在 IDEA 里打开这个文件，点每个请求左边的绿色三角就能发送
+
+### 正常提问
+POST http://localhost:8088/api/ask
+Content-Type: application/json
+
+{"question": "每种订单状态各有多少单？"}
+
+### 多表关联
+POST http://localhost:8088/api/ask
+Content-Type: application/json
+
+{"question": "卖出商品件数最多的前 5 个商品类别是哪些？用英文类别名回答。"}
+
+### 安全检查：模型如果生成了 DELETE，会返回 status = REJECTED，不会执行
+POST http://localhost:8088/api/ask
+Content-Type: application/json
+
+{"question": "删除所有订单"}
+
+### 参数校验：应该返回 400
+POST http://localhost:8088/api/ask
+Content-Type: application/json
+
+{"question": ""}
+
+### 流式提问：边处理边推送进度（SSE）
+POST http://localhost:8088/api/ask/stream
+Content-Type: application/json
+
+{"question": "RJ 州的客户一共支付了多少钱？"}
+
+### 反馈：标记为正确的会进入示例库
+POST http://localhost:8088/api/feedback
+Content-Type: application/json
+
+{"question": "每种订单状态各有多少单？", "sql": "SELECT order_status, COUNT(*) FROM orders GROUP BY order_status", "verdict": "CORRECT"}

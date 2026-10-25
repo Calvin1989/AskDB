@@ -1,0 +1,6 @@
+# 导入 Olist 数据：mvn spring-boot:run -Dspring-boot.run.profiles=import
+# 管理员账号等共同设置见 application-admin.yml
+askdb:
+  data-import:
+    data-dir: ${OLIST_DATA_DIR:data/olist}   # 默认是项目根目录下的 data/olist
+    batch-size: 2000

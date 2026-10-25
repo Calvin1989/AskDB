@@ -1,0 +1,12 @@
+# 管理任务（import 导入数据、setup-reader 建只读账号）共用的设置，由 application.yml 里的 profiles.group 自动带上
+spring:
+  main:
+    web-application-type: none   # 不启动 Web 服务，做完自动退出
+  # 建库建表、写数据、建账号都要管理员账号（只读账号做不了）
+  datasource:
+    username: ${DB_ADMIN_USERNAME:root}
+    password: ${DB_ADMIN_PASSWORD:}
+
+askdb:
+  query-log:
+    enabled: false

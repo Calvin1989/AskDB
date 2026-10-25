@@ -1,0 +1,11 @@
+# 对照组：关掉所有准确率改进，用来测"改进前"的准确率。
+# 和 eval 一起用：mvn spring-boot:run "-Dspring-boot.run.profiles=eval,baseline"
+askdb:
+  schema:
+    strategy: full
+  glossary:
+    enabled: false
+  correction:
+    max-attempts: 0
+  examples:
+    enabled: false

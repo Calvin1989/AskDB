@@ -1,0 +1,134 @@
+[
+  {
+    "id": "t001",
+    "category": "single_table",
+    "question": "数据里一共有多少条评价？",
+    "goldSql": "SELECT COUNT(*) FROM order_reviews"
+  },
+  {
+    "id": "t002",
+    "category": "single_table",
+    "question": "目前处于已发货状态的订单有多少个？",
+    "goldSql": "SELECT COUNT(*) FROM orders WHERE order_status = 'shipped'"
+  },
+  {
+    "id": "t003",
+    "category": "single_table",
+    "question": "最重的商品有多少克？",
+    "goldSql": "SELECT MAX(product_weight_g) FROM products"
+  },
+  {
+    "id": "t004",
+    "category": "single_table",
+    "question": "付款时最多分了多少期？",
+    "goldSql": "SELECT MAX(payment_installments) FROM order_payments"
+  },
+  {
+    "id": "t005",
+    "category": "aggregation",
+    "question": "2018 年第一季度一共下了多少单？",
+    "goldSql": "SELECT COUNT(*) FROM orders WHERE order_purchase_timestamp >= '2018-01-01' AND order_purchase_timestamp < '2018-04-01'"
+  },
+  {
+    "id": "t006",
+    "category": "aggregation",
+    "question": "1 到 5 分每个分数各有多少条评价？",
+    "goldSql": "SELECT review_score, COUNT(*) FROM order_reviews GROUP BY review_score"
+  },
+  {
+    "id": "t007",
+    "category": "aggregation",
+    "question": "用借记卡付款时，平均每笔付多少钱？",
+    "goldSql": "SELECT AVG(payment_value) FROM order_payments WHERE payment_type = 'debit_card'"
+  },
+  {
+    "id": "t008",
+    "category": "aggregation",
+    "question": "哪个月的订单最多？返回年月，格式如 2017-11。",
+    "goldSql": "SELECT DATE_FORMAT(order_purchase_timestamp, '%Y-%m') FROM orders GROUP BY DATE_FORMAT(order_purchase_timestamp, '%Y-%m') ORDER BY COUNT(*) DESC LIMIT 1"
+  },
+  {
+    "id": "t009",
+    "category": "aggregation",
+    "question": "一个订单里买了不止一件商品的订单有多少个？",
+    "goldSql": "SELECT COUNT(*) FROM (SELECT order_id FROM order_items GROUP BY order_id HAVING COUNT(*) > 1) t"
+  },
+  {
+    "id": "t010",
+    "category": "join",
+    "question": "按卖家所在的州统计，哪个州卖出的商品总金额最高？",
+    "goldSql": "SELECT s.seller_state FROM order_items oi JOIN sellers s ON oi.seller_id = s.seller_id GROUP BY s.seller_state ORDER BY SUM(oi.price) DESC LIMIT 1"
+  },
+  {
+    "id": "t011",
+    "category": "join",
+    "question": "bed_bath_table 这个类别一共卖出了多少件商品？",
+    "goldSql": "SELECT COUNT(*) FROM order_items oi JOIN products p ON oi.product_id = p.product_id JOIN category_translation t ON p.product_category_name = t.product_category_name WHERE t.product_category_name_english = 'bed_bath_table'"
+  },
+  {
+    "id": "t012",
+    "category": "join",
+    "question": "MG 州的客户一共下了多少个订单？",
+    "goldSql": "SELECT COUNT(*) FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE c.customer_state = 'MG'"
+  },
+  {
+    "id": "t013",
+    "category": "join",
+    "question": "收到过 5 分评价的订单里，按单件商品算，平均运费是多少？",
+    "goldSql": "SELECT AVG(oi.freight_value) FROM order_items oi WHERE oi.order_id IN (SELECT order_id FROM order_reviews WHERE review_score = 5)"
+  },
+  {
+    "id": "t014",
+    "category": "join",
+    "question": "哪个商品类别的平均售价最高？用英文类别名回答。",
+    "goldSql": "SELECT t.product_category_name_english FROM order_items oi JOIN products p ON oi.product_id = p.product_id JOIN category_translation t ON p.product_category_name = t.product_category_name GROUP BY t.product_category_name_english ORDER BY AVG(oi.price) DESC LIMIT 1"
+  },
+  {
+    "id": "t015",
+    "category": "business_term",
+    "question": "RJ 州一共有多少客户？",
+    "goldSql": "SELECT COUNT(DISTINCT customer_unique_id) FROM customers WHERE customer_state = 'RJ'"
+  },
+  {
+    "id": "t016",
+    "category": "business_term",
+    "question": "2017 年下单的订单，客单价是多少？",
+    "goldSql": "SELECT SUM(p.payment_value) / COUNT(DISTINCT p.order_id) FROM order_payments p JOIN orders o ON p.order_id = o.order_id WHERE o.order_purchase_timestamp >= '2017-01-01' AND o.order_purchase_timestamp < '2018-01-01'"
+  },
+  {
+    "id": "t017",
+    "category": "business_term",
+    "question": "2018 年上半年每个月的 GMV 分别是多少？返回月份数字和 GMV。",
+    "goldSql": "SELECT MONTH(o.order_purchase_timestamp), SUM(oi.price) FROM orders o JOIN order_items oi ON o.order_id = oi.order_id WHERE o.order_purchase_timestamp >= '2018-01-01' AND o.order_purchase_timestamp < '2018-07-01' AND o.order_status NOT IN ('canceled', 'unavailable') GROUP BY MONTH(o.order_purchase_timestamp)"
+  },
+  {
+    "id": "t018",
+    "category": "business_term",
+    "question": "SP 州客户的订单里，有多少个是延迟送达的？",
+    "goldSql": "SELECT COUNT(*) FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE c.customer_state = 'SP' AND o.order_delivered_customer_date > o.order_estimated_delivery_date"
+  },
+  {
+    "id": "t019",
+    "category": "business_term",
+    "question": "已送达订单收到的评价中，差评率是多少？",
+    "goldSql": "SELECT SUM(CASE WHEN r.review_score <= 2 THEN 1 ELSE 0 END) / COUNT(*) FROM order_reviews r JOIN orders o ON r.order_id = o.order_id WHERE o.order_status = 'delivered'"
+  },
+  {
+    "id": "t020",
+    "category": "business_term",
+    "question": "2018 年 SP 州有多少个活跃卖家？",
+    "goldSql": "SELECT COUNT(DISTINCT oi.seller_id) FROM order_items oi JOIN orders o ON oi.order_id = o.order_id JOIN sellers s ON oi.seller_id = s.seller_id WHERE s.seller_state = 'SP' AND o.order_purchase_timestamp >= '2018-01-01' AND o.order_purchase_timestamp < '2019-01-01'"
+  },
+  {
+    "id": "t021",
+    "category": "business_term",
+    "question": "复购客户占全部客户的比例是多少？返回 0 到 1 之间的小数。",
+    "goldSql": "SELECT (SELECT COUNT(*) FROM (SELECT c.customer_unique_id FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.customer_unique_id HAVING COUNT(DISTINCT o.order_id) >= 2) t) / (SELECT COUNT(DISTINCT customer_unique_id) FROM customers)"
+  },
+  {
+    "id": "t022",
+    "category": "business_term",
+    "question": "RJ 州客户的已送达订单，平均配送天数是多少？",
+    "goldSql": "SELECT AVG(DATEDIFF(o.order_delivered_customer_date, o.order_purchase_timestamp)) FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE c.customer_state = 'RJ' AND o.order_status = 'delivered' AND o.order_delivered_customer_date IS NOT NULL"
+  }
+]
