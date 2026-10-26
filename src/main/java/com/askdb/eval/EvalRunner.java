@@ -37,7 +37,7 @@ import java.util.List;
  *   <li>题集：askdb.eval.cases，默认是调参集 cases.json；考核集是 test-cases.json</li>
  *   <li>次数：askdb.eval.repeat，模型输出不完全固定，跑多次取平均更可信</li>
  * </ul>
- * 结果文件名带上 eval 以外的配置名（baseline、agent），方便区分对照组和不同方案。
+ * 结果文件名带上对照组（baseline）和 Agent 模式（agent）的标记，方便区分不同方案。
  * 直接调用 AskService，所以测的是完整流程；以后加了选表、自动修正等功能，评测代码不用改。
  */
 @Component
@@ -56,10 +56,14 @@ public class EvalRunner implements ApplicationRunner {
 
     public EvalRunner(AskService askService, SqlExecutor sqlExecutor, LlmSettingsService llmSettings,
                       AskDbProperties properties, ObjectMapper objectMapper, Environment environment) {
-        this.variant = Arrays.stream(environment.getActiveProfiles())
-                .filter(p -> !p.equals("eval"))
-                .reduce((a, b) -> a + "-" + b)
-                .orElse("");
+        // 按实际生效的设置命名：Agent 也可能是在 askdb-local.yml 里打开的，而不是通过 agent 配置
+        List<String> labels = new ArrayList<>(Arrays.stream(environment.getActiveProfiles())
+                .filter(p -> !p.equals("eval") && !p.equals("agent"))
+                .toList());
+        if (properties.agent().enabled()) {
+            labels.add("agent");
+        }
+        this.variant = String.join("-", labels);
         this.askService = askService;
         this.sqlExecutor = sqlExecutor;
         this.llmSettings = llmSettings;
