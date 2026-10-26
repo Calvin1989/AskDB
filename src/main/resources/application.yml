@@ -22,7 +22,7 @@ spring:
   # 服务运行时用只读账号 askdb_reader（建账号见 db/setup-reader.sql）
   # 导入数据、建只读账号时用管理员账号，见 application-admin.yml
   datasource:
-    url: jdbc:mysql://localhost:3306/askdb?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useInformationSchema=true&rewriteBatchedStatements=true
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/askdb?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useInformationSchema=true&rewriteBatchedStatements=true
     username: ${DB_USERNAME:askdb_reader}
     password: ${DB_PASSWORD:}
 
@@ -71,7 +71,7 @@ askdb:
     api-key: ${LLM_API_KEY:}
     model: ${LLM_MODEL:deepseek-chat}
     temperature: 0             # 生成 SQL 要稳定，评测结果才能复现
-    settings-file: askdb-llm.json
+    settings-file: ${ASKDB_LLM_SETTINGS_FILE:askdb-llm.json}
     editable: ${ASKDB_LLM_EDITABLE:true}   # 部署到公网时设为 false，否则任何人都能在页面上改你的 Key
   query:
     max-rows: 200
@@ -89,6 +89,12 @@ askdb:
     enabled: true              # 示例库：页面上标记"正确"的问题和 SQL
     max-examples: 3
     min-similarity: 0.3
+  followup:
+    enabled: true              # 多轮追问：结合前面的问题，把"那 SP 州呢？"改写成完整的问题
+    max-history: 3             # 最多参考前面几个问题
+  agent:
+    enabled: ${ASKDB_AGENT_ENABLED:false}   # Agent 模式：写 SQL 前模型可以自己查数据（看某列取值、试运行 SQL）
+    max-tool-calls: 6          # 每个问题最多调用几次工具
   # 提问接口限流：每个 IP 每分钟最多 10 次。多台服务器部署时 store 改成 redis
   rate-limit:
     enabled: true

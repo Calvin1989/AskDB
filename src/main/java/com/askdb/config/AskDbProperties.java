@@ -17,6 +17,8 @@ public record AskDbProperties(
         @DefaultValue Glossary glossary,
         @DefaultValue Correction correction,
         @DefaultValue Examples examples,
+        @DefaultValue Followup followup,
+        @DefaultValue Agent agent,
         @DefaultValue RateLimit rateLimit,
         @DefaultValue Cache cache,
         @DefaultValue QueryLog queryLog,
@@ -77,6 +79,26 @@ public record AskDbProperties(
             @DefaultValue("true") boolean enabled,
             @DefaultValue("3") int maxExamples,
             @DefaultValue("0.3") double minSimilarity) {
+    }
+
+    /**
+     * 多轮追问：结合同一对话里前面的问题，把追问改写成完整的问题。
+     *
+     * @param maxHistory 最多参考前面几个问题
+     */
+    public record Followup(
+            @DefaultValue("true") boolean enabled,
+            @DefaultValue("3") int maxHistory) {
+    }
+
+    /**
+     * Agent 模式：写 SQL 前模型可以自己调用工具查看数据（表结构、某列的常见取值、试运行 SQL）。
+     *
+     * @param maxToolCalls 每个问题最多调用几次工具
+     */
+    public record Agent(
+            @DefaultValue("false") boolean enabled,
+            @DefaultValue("6") int maxToolCalls) {
     }
 
     /**

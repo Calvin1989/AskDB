@@ -1,0 +1,111 @@
+[
+  {
+    "id": "f001",
+    "category": "followup",
+    "history": [
+      "RJ 州的客户一共支付了多少钱？"
+    ],
+    "question": "那 SP 州呢？",
+    "goldSql": "SELECT SUM(pay.payment_value) FROM customers c JOIN orders o ON c.customer_id = o.customer_id JOIN order_payments pay ON o.order_id = pay.order_id WHERE c.customer_state = 'SP'"
+  },
+  {
+    "id": "f002",
+    "category": "followup",
+    "history": [
+      "2017 年 11 月一共有多少个订单？"
+    ],
+    "question": "12 月呢？",
+    "goldSql": "SELECT COUNT(*) FROM orders WHERE order_purchase_timestamp >= '2017-12-01' AND order_purchase_timestamp < '2018-01-01'"
+  },
+  {
+    "id": "f003",
+    "category": "followup",
+    "history": [
+      "每种支付方式的支付总金额分别是多少？"
+    ],
+    "question": "只看 SP 州的客户呢？",
+    "goldSql": "SELECT pay.payment_type, SUM(pay.payment_value) FROM customers c JOIN orders o ON c.customer_id = o.customer_id JOIN order_payments pay ON o.order_id = pay.order_id WHERE c.customer_state = 'SP' GROUP BY pay.payment_type"
+  },
+  {
+    "id": "f004",
+    "category": "followup",
+    "history": [
+      "卖出商品件数最多的前 5 个商品类别是哪些？用英文类别名回答。"
+    ],
+    "question": "前 3 个呢？",
+    "goldSql": "SELECT t.product_category_name_english FROM order_items oi JOIN products p ON oi.product_id = p.product_id JOIN category_translation t ON p.product_category_name = t.product_category_name GROUP BY t.product_category_name_english ORDER BY COUNT(*) DESC LIMIT 3"
+  },
+  {
+    "id": "f005",
+    "category": "followup",
+    "history": [
+      "一共有多少个卖家？"
+    ],
+    "question": "其中 SP 州的有多少个？",
+    "goldSql": "SELECT COUNT(*) FROM sellers WHERE seller_state = 'SP'"
+  },
+  {
+    "id": "f006",
+    "category": "followup",
+    "history": [
+      "5 分的评价有多少条？"
+    ],
+    "question": "1 分的呢？",
+    "goldSql": "SELECT COUNT(*) FROM order_reviews WHERE review_score = 1"
+  },
+  {
+    "id": "f007",
+    "category": "followup",
+    "history": [
+      "2018 年的 GMV 是多少？"
+    ],
+    "question": "2017 年呢？",
+    "goldSql": "SELECT SUM(oi.price) FROM orders o JOIN order_items oi ON o.order_id = oi.order_id WHERE o.order_purchase_timestamp >= '2017-01-01' AND o.order_purchase_timestamp < '2018-01-01' AND o.order_status NOT IN ('canceled', 'unavailable')"
+  },
+  {
+    "id": "f008",
+    "category": "followup",
+    "history": [
+      "延迟送达的订单有多少个？"
+    ],
+    "question": "其中 2018 年下单的有多少？",
+    "goldSql": "SELECT COUNT(*) FROM orders WHERE order_delivered_customer_date > order_estimated_delivery_date AND order_purchase_timestamp >= '2018-01-01' AND order_purchase_timestamp < '2019-01-01'"
+  },
+  {
+    "id": "f009",
+    "category": "followup",
+    "history": [
+      "2017 年 11 月一共有多少个订单？",
+      "2017 年 12 月一共有多少个订单？"
+    ],
+    "question": "其中 SP 州客户下的有多少？",
+    "goldSql": "SELECT COUNT(*) FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE c.customer_state = 'SP' AND o.order_purchase_timestamp >= '2017-12-01' AND o.order_purchase_timestamp < '2018-01-01'"
+  },
+  {
+    "id": "f010",
+    "category": "followup",
+    "history": [
+      "RJ 州的客户一共支付了多少钱？"
+    ],
+    "question": "一共有多少个卖家？",
+    "goldSql": "SELECT COUNT(*) FROM sellers"
+  },
+  {
+    "id": "f011",
+    "category": "followup",
+    "history": [
+      "2018 年每个月分别有多少个订单？返回月份数字（1-12）和订单数。"
+    ],
+    "question": "2017 年呢？",
+    "goldSql": "SELECT MONTH(order_purchase_timestamp), COUNT(*) FROM orders WHERE order_purchase_timestamp >= '2017-01-01' AND order_purchase_timestamp < '2018-01-01' GROUP BY MONTH(order_purchase_timestamp)"
+  },
+  {
+    "id": "f012",
+    "category": "followup",
+    "history": [
+      "SP 州的卖家一共卖出了多少件商品？"
+    ],
+    "question": "按商品类别看，哪个类别卖得最多？用英文类别名回答。",
+    "goldSql": "SELECT t.product_category_name_english FROM order_items oi JOIN sellers s ON oi.seller_id = s.seller_id JOIN products p ON oi.product_id = p.product_id JOIN category_translation t ON p.product_category_name = t.product_category_name WHERE s.seller_state = 'SP' GROUP BY t.product_category_name_english ORDER BY COUNT(*) DESC LIMIT 1"
+  }
+]

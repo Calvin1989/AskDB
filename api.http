@@ -30,6 +30,12 @@ Content-Type: application/json
 
 {"question": "RJ 州的客户一共支付了多少钱？"}
 
+### 多轮追问：history 是同一对话里前面的问题，后端会把"那 SP 州呢？"改写成完整的问题
+POST http://localhost:8088/api/ask
+Content-Type: application/json
+
+{"question": "那 SP 州呢？", "history": ["RJ 州的客户一共支付了多少钱？"]}
+
 ### 反馈：标记为正确的会进入示例库
 POST http://localhost:8088/api/feedback
 Content-Type: application/json

@@ -1,5 +1,7 @@
 package com.askdb.core;
 
+import com.askdb.agent.SqlAgent;
+import com.askdb.agent.SqlAgent.AgentAnswer;
 import com.askdb.config.AskDbProperties;
 import com.askdb.core.AskProgress.Step;
 import com.askdb.core.AskResult.Status;
@@ -12,6 +14,8 @@ import com.askdb.llm.GeneratedSql;
 import com.askdb.llm.GeneratedSql.TokenUsage;
 import com.askdb.llm.GenerationRequest;
 import com.askdb.llm.PromptSections;
+import com.askdb.llm.QuestionRewriter;
+import com.askdb.llm.QuestionRewriter.Rewritten;
 import com.askdb.llm.SqlGenerator;
 import com.askdb.schema.SchemaContext;
 import com.askdb.schema.SchemaProvider;
@@ -30,11 +34,12 @@ import java.util.Set;
 /**
  * 一次提问的总流程。这里只负责按顺序调用各步骤，具体逻辑都在各自的类里：
  * <ol>
+ *   <li>多轮追问时，结合前面的问题把当前问题改写完整（QuestionRewriter）</li>
  *   <li>查缓存（AnswerCache），命中直接返回</li>
  *   <li>匹配业务术语（GlossaryService）</li>
  *   <li>选表（SchemaProvider），术语涉及的表一定带上</li>
  *   <li>找相似问题的已确认示例（ExampleStore）</li>
- *   <li>生成 SQL（SqlGenerator）</li>
+ *   <li>生成 SQL（SqlGenerator；Agent 模式下是 SqlAgent，写之前可以自己查数据）</li>
  *   <li>安全检查并执行（SqlExecutor）；报错时把报错交给模型修正，最多 N 次</li>
  *   <li>写缓存、记调用日志（QueryLogService）</li>
  * </ol>
@@ -52,12 +57,21 @@ public class AskService {
     private final SqlGenerator sqlGenerator;
     private final SqlExecutor sqlExecutor;
     private final QueryLogService queryLog;
+    private final QuestionRewriter rewriter;
+    private final SqlAgent sqlAgent;
     private final int maxCorrections;
+    private final AskDbProperties.Followup followup;
+    private final boolean agentEnabled;
 
     public AskService(AnswerCache answerCache, GlossaryService glossary, SchemaProvider schemaProvider,
                       ExampleStore exampleStore, SqlGenerator sqlGenerator, SqlExecutor sqlExecutor,
-                      QueryLogService queryLog, AskDbProperties properties) {
+                      QueryLogService queryLog, QuestionRewriter rewriter, SqlAgent sqlAgent,
+                      AskDbProperties properties) {
         this.answerCache = answerCache;
+        this.rewriter = rewriter;
+        this.sqlAgent = sqlAgent;
+        this.agentEnabled = properties.agent().enabled();
+        this.followup = properties.followup();
         this.glossary = glossary;
         this.schemaProvider = schemaProvider;
         this.exampleStore = exampleStore;
@@ -68,41 +82,78 @@ public class AskService {
     }
 
     public AskResult ask(String question) {
-        return ask(question, AskProgress.NONE);
+        return ask(question, List.of(), AskProgress.NONE);
     }
 
-    public AskResult ask(String question, AskProgress progress) {
+    /**
+     * @param history 同一对话里前面的问题（从早到晚），用来理解追问；没有时传空列表
+     */
+    public AskResult ask(String question, List<String> history, AskProgress progress) {
         long start = System.currentTimeMillis();
-        Optional<AskResult> cached = answerCache.get(question);
+        Rewritten rewritten = resolve(question, history, progress);
+        String effective = rewritten.question();
+        String rewrittenQuestion = effective.equals(question) ? null : effective;
+
+        Optional<AskResult> cached = answerCache.get(effective);
         AskResult result;
         if (cached.isPresent()) {
             progress.step(new Step("CACHE", "这个问题之前问过，直接返回上次的结果"));
-            result = cached.get().asCacheHit(elapsed(start));
+            result = cached.get().asCacheHit(rewritten.usage(), elapsed(start)).withQuestion(question, rewrittenQuestion);
         } else {
-            result = answer(question, progress, start);
+            result = answer(effective, rewritten.usage(), progress, start).withQuestion(question, rewrittenQuestion);
             answerCache.put(result);
         }
         queryLog.record(result);
         return result;
     }
 
+    /**
+     * 有上文时把问题改写完整。改写失败不影响提问，按原问题继续（只是追问可能理解不对）。
+     * 没有改写时 usage 为 null。
+     */
+    private Rewritten resolve(String question, List<String> history, AskProgress progress) {
+        if (!followup.enabled() || history.isEmpty()) {
+            return new Rewritten(question, null);
+        }
+        List<String> recent = history.subList(Math.max(0, history.size() - followup.maxHistory()), history.size());
+        try {
+            Rewritten rewritten = rewriter.rewrite(question, recent);
+            if (!rewritten.question().equals(question)) {
+                progress.step(new Step("REWRITE", "结合上文，理解为：" + rewritten.question()));
+            }
+            return rewritten;
+        } catch (Exception e) {
+            log.warn("改写追问失败，按原问题继续：{}", e.getMessage());
+            return new Rewritten(question, null);
+        }
+    }
+
     /** 准备好的生成材料，以及对应的过程记录 */
     private record Prepared(GenerationRequest request, Trace trace) {
     }
 
-    private AskResult answer(String question, AskProgress progress, long start) {
+    /** @param usedTokens 生成 SQL 之前已经用掉的 token（改写追问），没有时为 null */
+    private AskResult answer(String question, TokenUsage usedTokens, AskProgress progress, long start) {
         Prepared prepared;
         GeneratedSql generated;
         try {
             prepared = prepare(question, progress);
-            progress.step(new Step("GENERATE", "正在生成 SQL"));
-            generated = sqlGenerator.generate(prepared.request());
+            if (agentEnabled) {
+                progress.step(new Step("GENERATE", "正在生成 SQL，需要时会先查看数据"));
+                AgentAnswer answer = sqlAgent.generate(prepared.request(), progress);
+                generated = answer.sql();
+                prepared = new Prepared(prepared.request(), prepared.trace().withToolCalls(answer.toolCalls()));
+            } else {
+                progress.step(new Step("GENERATE", "正在生成 SQL"));
+                generated = sqlGenerator.generate(prepared.request());
+            }
         } catch (Exception e) {
             log.warn("生成 SQL 失败，问题：{}", question, e);
             return new AskResult(question, null, null, Status.GENERATION_FAILED, e.getMessage(),
-                    null, null, false, elapsed(start));
+                    usedTokens, null, false, elapsed(start));
         }
-        return executeWithCorrection(question, prepared, generated, progress, start);
+        TokenUsage usage = usedTokens == null ? generated.usage() : usedTokens.plus(generated.usage());
+        return executeWithCorrection(question, prepared, new GeneratedSql(generated.sql(), usage), progress, start);
     }
 
     /** 匹配术语、选表、找示例，拼成交给模型的材料 */
@@ -117,7 +168,7 @@ public class AskService {
         SchemaContext schema = schemaProvider.describe(question, requiredTables);
         if (schema.totalTables() == 0) {
             // 库里一张表都没有时，调模型也只能瞎猜表名，自动修正也救不回来，直接说明原因
-            throw new IllegalStateException("数据库里还没有任何表：请先导入数据（README 第 3 步），导入后重启后端。");
+            throw new IllegalStateException("数据库里还没有任何表：请先导入数据（docs/development.md 第 3 步；Docker 部署是 docker compose run --rm init），导入后重启后端。");
         }
         progress.step(new Step("SCHEMA", schema.tables().size() == schema.totalTables()
                 ? "使用全部 " + schema.totalTables() + " 张表"
@@ -130,7 +181,7 @@ public class AskService {
 
         GenerationRequest request = new GenerationRequest(question, schema.text(), PromptSections.of(terms, examples));
         Trace trace = new Trace(schema.tables(), schema.totalTables(), terms.stream().map(Term::term).toList(),
-                examples.size(), 0);
+                examples.size(), 0, List.of());
         return new Prepared(request, trace);
     }
 

@@ -1,10 +1,11 @@
 import { computed, reactive, watch } from 'vue'
 import { askQuestionStream, RequestError, sendFeedback } from '../api/ask'
 import type { Conversation, Turn, Verdict } from '../types'
+import { effectiveQuestion, historyFor } from '../utils/followup'
 
 /**
  * 对话记录，保存在浏览器 localStorage 里，刷新页面后还在。
- * 目前每个问题都是独立查询；第 5 周做多轮追问时，会把同一对话里之前的问题一起发给后端。
+ * 提问时把同一对话里前面的问题一起发给后端，用来理解"那 SP 州呢？"这类追问。
  */
 
 const STORAGE_KEY = 'askdb.conversations.v1'
@@ -40,6 +41,7 @@ export function useConversations() {
 
   async function ask(question: string) {
     const conversation = active.value ?? createConversation(question)
+    const history = historyFor(conversation.turns)
     const turn: Turn = { id: newId(), question, askedAt: Date.now(), state: 'pending' }
     conversation.turns.push(turn)
     conversation.updatedAt = turn.askedAt
@@ -48,7 +50,7 @@ export function useConversations() {
     const live = conversation.turns[conversation.turns.length - 1]
     live.steps = []
     try {
-      live.answer = await askQuestionStream(question, (step) => live.steps!.push(step))
+      live.answer = await askQuestionStream(question, history, (step) => live.steps!.push(step))
       live.state = 'done'
     } catch (e) {
       live.state = 'failed'
@@ -56,12 +58,15 @@ export function useConversations() {
     }
   }
 
-  /** 标记结果对不对。标"对"的问题和 SQL 会进入示例库，以后相似的问题会参考 */
+  /**
+   * 标记结果对不对。标"对"的问题和 SQL 会进入示例库，以后相似的问题会参考。
+   * 追问要存改写后的完整问题："那 SP 州呢？"单独拿出来当示例没有意义。
+   */
   async function giveFeedback(turn: Turn, verdict: Verdict) {
     if (!turn.answer?.sql) return
     turn.feedbackError = undefined
     try {
-      await sendFeedback(turn.question, turn.answer.sql, verdict)
+      await sendFeedback(effectiveQuestion(turn), turn.answer.sql, verdict)
       turn.feedback = verdict
     } catch (e) {
       turn.feedbackError = e instanceof RequestError ? e.message : '提交失败，请稍后再试。'

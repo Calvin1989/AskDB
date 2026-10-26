@@ -1,5 +1,6 @@
 package com.askdb.api;
 
+import com.askdb.core.AskProgress;
 import com.askdb.core.AskResult;
 import com.askdb.core.AskService;
 import jakarta.validation.Valid;
@@ -17,13 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api")
 public class AskController {
 
     private static final Logger log = LoggerFactory.getLogger(AskController.class);
-    /** 生成 + 最多两次修正，每次调模型最多等 60 秒，留足余量 */
+    /** 改写追问 + 生成 + 最多两次修正，每次调模型最多等 60 秒，留足余量 */
     private static final long STREAM_TIMEOUT_MS = 300_000;
 
     private final AskService askService;
@@ -34,7 +36,17 @@ public class AskController {
         this.executor = executor;
     }
 
-    public record AskRequest(@NotBlank @Size(max = 500) String question) {
+    /**
+     * @param question 问题
+     * @param history  同一对话里前面的问题（从早到晚），用来理解"那 SP 州呢？"这类追问；可以不传
+     */
+    public record AskRequest(
+            @NotBlank @Size(max = 500) String question,
+            @Size(max = 10) List<@NotBlank @Size(max = 500) String> history) {
+
+        List<String> historyOrEmpty() {
+            return history == null ? List.of() : history.stream().map(String::trim).toList();
+        }
     }
 
     /**
@@ -42,7 +54,7 @@ public class AskController {
      */
     @PostMapping("/ask")
     public AskResult ask(@Valid @RequestBody AskRequest request) {
-        return askService.ask(request.question().trim());
+        return askService.ask(request.question().trim(), request.historyOrEmpty(), AskProgress.NONE);
     }
 
     /**
@@ -57,9 +69,10 @@ public class AskController {
     public SseEmitter askStream(@Valid @RequestBody AskRequest request) {
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
         String question = request.question().trim();
+        List<String> history = request.historyOrEmpty();
         executor.execute(() -> {
             try {
-                AskResult result = askService.ask(question, step -> send(emitter, "step", step));
+                AskResult result = askService.ask(question, history, step -> send(emitter, "step", step));
                 send(emitter, "result", result);
                 emitter.complete();
             } catch (Exception e) {

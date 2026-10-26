@@ -1,0 +1,5 @@
+# Agent 模式：写 SQL 前模型可以自己调用工具查看数据。和 eval 一起用来对比：
+#   mvn spring-boot:run "-Dspring-boot.run.profiles=eval,agent"
+askdb:
+  agent:
+    enabled: true

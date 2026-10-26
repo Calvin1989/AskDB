@@ -10,13 +10,17 @@ const OFFLINE = '连不上后端服务，请确认它已经在 8088 端口启动
  * 浏览器自带的 EventSource 只能发 GET，这里用 fetch 读取流，自己按 SSE 格式解析：
  * 每个事件以空行分隔，包含 "event:名字" 和 "data:内容" 两行。
  */
-export async function askQuestionStream(question: string, onStep: (step: ProgressStep) => void): Promise<AskResult> {
+export async function askQuestionStream(
+  question: string,
+  history: string[],
+  onStep: (step: ProgressStep) => void,
+): Promise<AskResult> {
   let response: Response
   try {
     response = await fetch('/api/ask/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, history }),
     })
   } catch {
     throw new RequestError(OFFLINE)

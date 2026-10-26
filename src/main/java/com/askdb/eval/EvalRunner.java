@@ -1,6 +1,7 @@
 package com.askdb.eval;
 
 import com.askdb.config.AskDbProperties;
+import com.askdb.core.AskProgress;
 import com.askdb.core.AskResult;
 import com.askdb.core.AskService;
 import com.askdb.eval.EvalReport.CaseOutcome;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -25,6 +27,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -34,6 +37,7 @@ import java.util.List;
  *   <li>题集：askdb.eval.cases，默认是调参集 cases.json；考核集是 test-cases.json</li>
  *   <li>次数：askdb.eval.repeat，模型输出不完全固定，跑多次取平均更可信</li>
  * </ul>
+ * 结果文件名带上 eval 以外的配置名（baseline、agent），方便区分对照组和不同方案。
  * 直接调用 AskService，所以测的是完整流程；以后加了选表、自动修正等功能，评测代码不用改。
  */
 @Component
@@ -48,9 +52,14 @@ public class EvalRunner implements ApplicationRunner {
     private final LlmSettingsService llmSettings;
     private final AskDbProperties.Eval config;
     private final ObjectMapper objectMapper;
+    private final String variant;
 
     public EvalRunner(AskService askService, SqlExecutor sqlExecutor, LlmSettingsService llmSettings,
-                      AskDbProperties properties, ObjectMapper objectMapper) {
+                      AskDbProperties properties, ObjectMapper objectMapper, Environment environment) {
+        this.variant = Arrays.stream(environment.getActiveProfiles())
+                .filter(p -> !p.equals("eval"))
+                .reduce((a, b) -> a + "-" + b)
+                .orElse("");
         this.askService = askService;
         this.sqlExecutor = sqlExecutor;
         this.llmSettings = llmSettings;
@@ -63,7 +72,7 @@ public class EvalRunner implements ApplicationRunner {
         String setName = setName();
         List<EvalCase> cases = loadCases();
         int repeat = Math.max(1, config.repeat());
-        log.info("开始评测：题集 {}，共 {} 道题，跑 {} 次", setName, cases.size(), repeat);
+        log.info("开始评测：题集 {}{}，共 {} 道题，跑 {} 次", setName, variant.isEmpty() ? "" : "（" + variant + "）", cases.size(), repeat);
 
         List<EvalReport> reports = new ArrayList<>(repeat);
         for (int run = 1; run <= repeat; run++) {
@@ -93,16 +102,17 @@ public class EvalRunner implements ApplicationRunner {
         try {
             gold = sqlExecutor.query(c.goldSql());
         } catch (Exception e) {
-            return new CaseOutcome(c.id(), c.category(), c.question(), c.goldSql(), null,
-                    "GOLD_FAILED", Match.NONE.name(), "标准答案执行失败：" + e.getMessage(), 0, 0, 0);
+            return new CaseOutcome(c.id(), c.category(), c.question(), null, c.goldSql(), null,
+                    "GOLD_FAILED", Match.NONE.name(), "标准答案执行失败：" + e.getMessage(), 0, 0, 0, 0);
         }
 
-        AskResult r = askService.ask(c.question());
+        AskResult r = askService.ask(c.question(), c.historyOrEmpty(), AskProgress.NONE);
         Match match = r.success() ? ResultComparator.compare(gold, r.result()) : Match.NONE;
         int promptTokens = r.usage() == null ? 0 : r.usage().promptTokens();
         int corrections = r.trace() == null ? 0 : r.trace().corrections();
-        return new CaseOutcome(c.id(), c.category(), c.question(), c.goldSql(), r.sql(),
-                r.status().name(), match.name(), r.error(), promptTokens, corrections, r.elapsedMs());
+        int toolCalls = r.trace() == null || r.trace().toolCalls() == null ? 0 : r.trace().toolCalls().size();
+        return new CaseOutcome(c.id(), c.category(), c.question(), r.rewrittenQuestion(), c.goldSql(), r.sql(),
+                r.status().name(), match.name(), r.error(), promptTokens, corrections, toolCalls, r.elapsedMs());
     }
 
     private List<EvalCase> loadCases() throws IOException {
@@ -125,7 +135,8 @@ public class EvalRunner implements ApplicationRunner {
         Path dir = Path.of(config.outputDir());
         Files.createDirectories(dir);
         String time = LocalDateTime.parse(report.startedAt()).format(FILE_TIME);
-        Path file = dir.resolve("eval-" + setName + "-" + time + "-run" + run + ".json");
+        String label = variant.isEmpty() ? setName : setName + "-" + variant;
+        Path file = dir.resolve("eval-" + label + "-" + time + "-run" + run + ".json");
         objectMapper.writer(SerializationFeature.INDENT_OUTPUT).writeValue(file.toFile(), report);
         return file;
     }

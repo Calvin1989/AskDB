@@ -11,6 +11,8 @@ const { giveFeedback } = useConversations()
 <template>
   <article class="turn">
     <h2 class="question">{{ turn.question }}</h2>
+    <!-- 追问：显示结合上文理解成的完整问题，理解错了一眼就能看出来 -->
+    <p v-if="turn.answer?.rewrittenQuestion" class="rewritten">理解为：{{ turn.answer.rewrittenQuestion }}</p>
 
     <!-- 处理中：显示后端推送的每一步，最后一步是正在进行的 -->
     <ol v-if="turn.state === 'pending'" class="steps" role="status" aria-live="polite">
@@ -54,6 +56,12 @@ const { giveFeedback } = useConversations()
 .turn + .turn {
   padding-top: 28px;
   border-top: 1px solid var(--line);
+}
+
+.rewritten {
+  margin: -8px 0 14px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .question {

@@ -1,0 +1,68 @@
+# 用法见 README 的"快速开始"：
+#   docker compose run --rm init   # 第一次：建表、导入数据、建只读账号
+#   docker compose up -d           # 启动，打开 http://localhost:8088
+
+# app 和 init 共用的环境变量
+x-app-env: &app-env
+  DB_HOST: mysql
+  REDIS_HOST: redis
+  DB_PASSWORD: ${DB_PASSWORD:?请在 .env 里设置 DB_PASSWORD（只读账号的密码）}
+  DB_ADMIN_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 里设置 MYSQL_ROOT_PASSWORD}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+  LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+  ASKDB_LLM_EDITABLE: ${ASKDB_LLM_EDITABLE:-true}
+  ASKDB_LLM_SETTINGS_FILE: /app/config/askdb-llm.json   # 页面上保存的模型设置，放在数据卷里，重建容器不会丢
+  ASKDB_CACHE_ENABLED: "true"
+  OLIST_DATA_DIR: /app/data/olist
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 里设置 MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+
+  app:
+    build: .
+    image: askdb
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8088:8088"
+    environment: *app-env
+    volumes:
+      - app-config:/app/config
+    restart: unless-stopped
+
+  # 只在第一次运行：导入 Olist 数据（data/olist 下的 CSV）并建只读账号，做完自动退出
+  init:
+    image: askdb
+    build: .
+    profiles: ["init"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: import,setup-reader
+    volumes:
+      - ./data:/app/data:ro
+
+volumes:
+  mysql-data:
+  app-config:

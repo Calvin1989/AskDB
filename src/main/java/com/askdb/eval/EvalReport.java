@@ -37,11 +37,14 @@ public record EvalReport(
      * @param status 模型那边的状态：SUCCESS / GENERATION_FAILED / REJECTED / EXECUTION_FAILED；
      *               标准答案本身执行失败时为 GOLD_FAILED（说明题目写错了，要修题）
      * @param match  和标准答案的比较结果：EXACT / EXTRA_COLUMNS / NONE
+     * @param rewrittenQuestion 追问题结合上文改写成的完整问题；没有改写时为 null
+     * @param toolCalls         Agent 模式下调用了几次工具
      */
     public record CaseOutcome(
             String id,
             String category,
             String question,
+            String rewrittenQuestion,
             String goldSql,
             String generatedSql,
             String status,
@@ -49,6 +52,7 @@ public record EvalReport(
             String error,
             int promptTokens,
             int corrections,
+            int toolCalls,
             long elapsedMs) {
 
         public boolean correct() {
@@ -92,6 +96,10 @@ public record EvalReport(
                 sb.append(String.format("  %-15s %s%n", category, value)));
         sb.append("平均耗时：").append(avgElapsedMs).append(" ms\n");
         sb.append("平均输入 token：").append(avgPromptTokens).append('\n');
+        int toolCalls = cases.stream().mapToInt(CaseOutcome::toolCalls).sum();
+        if (toolCalls > 0) {
+            sb.append(String.format("平均每题调用工具：%.1f 次%n", (double) toolCalls / cases.size()));
+        }
         long fixed = cases.stream().filter(c -> c.correct() && c.corrections() > 0).count();
         if (fixed > 0) {
             sb.append("其中经过自动修正才答对：").append(fixed).append(" 题\n");

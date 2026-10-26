@@ -43,7 +43,7 @@ function resize() {
       v-model="text"
       rows="1"
       :maxlength="MAX_LENGTH"
-      placeholder="输入问题，回车发送"
+      placeholder="输入问题，回车发送；可以接着上一个问题追问"
       aria-label="问题"
       @keydown="onKeydown"
       @input="resize"

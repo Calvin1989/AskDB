@@ -4,6 +4,8 @@ import { formatValue, toCsv } from './format'
 import { hintFor } from './hints'
 import { parseEvent } from '../api/ask'
 import { tokenizeSql } from './sql'
+import { effectiveQuestion, historyFor } from './followup'
+import type { Turn } from '../types'
 
 const result = (columns: string[], rows: unknown[][]) => ({ columns, rows, truncated: false })
 
@@ -93,5 +95,36 @@ describe('parseEvent 解析 SSE', () => {
   it('多行 data 合并，没有 data 时忽略', () => {
     expect(parseEvent('data:a\ndata:b')).toEqual({ name: 'message', data: 'a\nb' })
     expect(parseEvent(':heartbeat')).toBeNull()
+  })
+})
+
+describe('多轮追问的上文', () => {
+  const turn = (question: string, extra: Partial<Turn> = {}): Turn => ({
+    id: question,
+    question,
+    askedAt: 0,
+    state: 'done',
+    answer: {
+      question, rewrittenQuestion: null, sql: 'SELECT 1', result: null, status: 'SUCCESS',
+      error: null, usage: null, trace: null, cached: false, elapsedMs: 0,
+    },
+    ...extra,
+  })
+
+  it('改写过的问题用改写后的完整问题', () => {
+    const t = turn('那 SP 州呢？')
+    t.answer!.rewrittenQuestion = 'SP 州的客户一共支付了多少钱？'
+    expect(effectiveQuestion(t)).toBe('SP 州的客户一共支付了多少钱？')
+    expect(effectiveQuestion(turn('一共有多少个订单？'))).toBe('一共有多少个订单？')
+  })
+
+  it('只带已经有结果的问题，最多最近 3 个', () => {
+    const turns = [
+      turn('问题1'), turn('问题2'), turn('问题3'),
+      turn('请求失败的', { state: 'failed', answer: undefined }),
+      turn('问题4'),
+    ]
+    expect(historyFor(turns)).toEqual(['问题2', '问题3', '问题4'])
+    expect(historyFor([])).toEqual([])
   })
 })

@@ -1,4 +1,4 @@
--- 导入数据之后执行一次（README 第 4 步）。推荐用 setup-reader 配置运行程序，
+-- 导入数据之后执行一次（docs/development.md 第 4 步）。推荐用 setup-reader 配置运行程序，
 -- 它会用 root 执行这个脚本，再把账号密码改成 askdb-local.yml 里的 DB_PASSWORD。
 -- 可以重复执行：已经存在的库、表、账号不会被覆盖。升级后有新表时再执行一次即可。
 --

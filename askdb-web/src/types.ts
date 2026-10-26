@@ -20,10 +20,14 @@ export interface Trace {
   terms: string[]
   examples: number
   corrections: number
+  /** Agent 模式下写 SQL 前调用过的工具，如"查看 order_payments.payment_type 的常见取值" */
+  toolCalls?: string[]
 }
 
 export interface AskResult {
   question: string
+  /** 追问时结合上文改写成的完整问题；没有改写时为 null */
+  rewrittenQuestion?: string | null
   sql: string | null
   result: QueryResult | null
   status: AskStatus

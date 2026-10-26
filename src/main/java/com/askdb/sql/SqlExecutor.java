@@ -1,6 +1,7 @@
 package com.askdb.sql;
 
 import com.askdb.config.AskDbProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -19,12 +20,18 @@ public class SqlExecutor {
     private final JdbcTemplate jdbcTemplate;
     private final int maxRows;
 
+    @Autowired
     public SqlExecutor(DataSource dataSource, AskDbProperties properties) {
-        this.maxRows = properties.query().maxRows();
+        this(dataSource, properties.query().maxRows(), properties.query().timeoutSeconds());
+    }
+
+    /** 集成测试里直接传参数，不用构造整套配置 */
+    public SqlExecutor(DataSource dataSource, int maxRows, int timeoutSeconds) {
+        this.maxRows = maxRows;
         this.jdbcTemplate = new JdbcTemplate(dataSource);
         // 多取一行，用来判断结果有没有被截断
         this.jdbcTemplate.setMaxRows(maxRows + 1);
-        this.jdbcTemplate.setQueryTimeout(properties.query().timeoutSeconds());
+        this.jdbcTemplate.setQueryTimeout(timeoutSeconds);
     }
 
     /**

@@ -3,11 +3,12 @@
 ## 一次提问经过哪几步
 
 ```
-用户问题
+用户问题（+ 同一对话里前面的问题）
    │
    ▼
 AskController ──► AskService（总流程，只负责按顺序调用下面几步，每步通过 AskProgress 推送进度）
    │                 │
+   │                 ├─⓪ QuestionRewriter   有上文时，把"那 SP 州呢？"改写成完整的问题，后面各步都用改写后的
    │ /api/ask        ├─① AnswerCache        查缓存，命中直接返回
    │ /api/ask/stream ├─② GlossaryService    匹配业务术语（GMV、复购……），得到口径定义和相关的表
    │  （SSE 推进度）  ├─③ SchemaProvider     选表：按问题打分 + 术语要求的表 + 补齐关联的中间表
@@ -32,7 +33,7 @@ AskResult（问题、SQL、结果或错误、token、过程记录 trace、是否
 | `schema` | 读取表结构、按问题选表、表之间的关联 | `SchemaReader`、`TableSelector`、`TableRelations`、`RetrievalSchemaProvider`、`FullSchemaProvider` |
 | `glossary` | 业务词典 | `GlossaryService`、`Term` |
 | `examples` | 示例库（用户反馈） | `ExampleStore`、`ExampleMatcher` |
-| `llm` | 模型设置、调模型生成和修正 SQL、拼提示词 | `SqlGenerator`、`PromptSections`、`LlmSettingsService`、`LlmClientFactory` |
+| `llm` | 模型设置、调模型生成和修正 SQL、改写追问、拼提示词 | `SqlGenerator`、`QuestionRewriter`、`PromptSections`、`LlmSettingsService`、`LlmClientFactory` |
 | `sql` | SQL 安全检查和执行 | `SqlGuard`、`SqlExecutor`、`QueryResult` |
 | `ratelimit` | 限流 | `RateLimiter`、`InMemoryRateLimiter`、`RedisRateLimiter`、`RateLimitInterceptor` |
 | `text` | 切词和相似度（选表、找示例共用） | `TextTokens` |
@@ -129,23 +130,23 @@ SqlGuard 拦截分两种（`UnsafeSqlException.fixable`）：写法问题（解�
 - Redis 版：有序集合存请求时间，"删掉窗口外的 → 计数 → 没超就加一条"放在一个 Lua 脚本里，Redis 单线程执行脚本，并发时不会多放进来；Redis 出错时放行，限流挂了不能拖垮整个服务
 - 部署在反向代理后面时要配 `server.forward-headers-strategy=native`，否则所有人共用代理的 IP
 
-## 后面每周的功能插在哪里
+## 功能对应的代码位置
 
-| 周 | 功能 | 改动位置 | 状态 |
-|---|---|---|---|
-| 第 2 周 | 只放行 SELECT | `sql/SqlGuard`，`SqlExecutor` 执行前调用 | 已完成 |
-| 第 2 周 | 只读账号 | `db/setup-reader.sql`，导入时用管理员账号 | 已完成 |
-| 第 2 周 | 查询超时、限制行数 | `AskDbProperties.query` | 已完成 |
-| 第 2 周 | 相同问题走 Redis 缓存 | `core/AnswerCache`，`AskService` 入口处调用 | 已完成 |
-| 第 2 周 | 调用日志 + token 用量 | `core/QueryLogService`，`SqlGenerator` 返回 token 数 | 已完成 |
-| 第 3 周 | 按问题选表 | `schema/RetrievalSchemaProvider`、`TableSelector`、`TableRelations` | 已完成 |
-| 第 3 周 | 业务词典 | `glossary/GlossaryService`，数据在 `resources/glossary.json` | 已完成 |
-| 第 4 周 | 报错后自动修正 SQL | `AskService` 里的修正循环，提示词 `prompts/sql-fix.st` | 已完成 |
-| 第 4 周 | 示例库 + 反馈按钮 | `examples/ExampleStore`、`/api/feedback`、前端反馈按钮 | 已完成 |
-| 提前 | 进度推送、限流 | `/api/ask/stream`（SSE）、`ratelimit` 包 | 已完成 |
-| 第 4 周 | 问题有歧义时反问 | 改用结构化输出；`AskResult` 加一种"需要澄清"的状态 | |
-| 提前 | 前端页面 | `askdb-web/`（Vue 3），开发时代理 `/api` 到后端，打包后放进后端静态目录 | 已完成 |
-| 第 5 周 | 多轮追问 | 前端已按对话保存记录；请求里带上同一对话之前的问答，`SqlGenerator` 多一个历史参数 | |
+| 功能 | 代码位置 |
+|---|---|
+| 只放行 SELECT | `sql/SqlGuard`，`SqlExecutor` 执行前调用 |
+| 只读账号 | `db/setup-reader.sql`，`dataimport/ReaderAccountSetup` 用管理员账号执行 |
+| 查询超时、限制行数 | `AskDbProperties.query` |
+| 相同问题走 Redis 缓存 | `core/AnswerCache`，`AskService` 入口处调用 |
+| 调用日志 + token 用量 | `core/QueryLogService` |
+| 按问题选表 | `schema/RetrievalSchemaProvider`、`TableSelector`、`TableRelations` |
+| 业务词典 | `glossary/GlossaryService`，数据在 `resources/glossary.json` |
+| 报错后自动修正 SQL | `AskService` 里的修正循环，提示词 `prompts/sql-fix.st` |
+| 示例库 + 反馈按钮 | `examples/ExampleStore`、`/api/feedback`、前端反馈按钮 |
+| 进度推送、限流 | `/api/ask/stream`（SSE）、`ratelimit` 包 |
+| 多轮追问 | `llm/QuestionRewriter`，提示词 `prompts/rewrite.st` |
+| Agent 模式 | `agent/SqlAgent`、`agent/AgentTools`，提示词 `prompts/agent-tools.st` |
+| 前端页面 | `askdb-web/`（Vue 3），开发时代理 `/api` 到后端，打包后放进后端静态目录 |
 
 ## 评测怎么判对错
 
@@ -169,3 +170,57 @@ SqlGuard 拦截分两种（`UnsafeSqlException.fixable`）：写法问题（解�
 - **调参集** `cases.json`（30 道）：改提示词、加功能时看它，可以逐题分析错因。
 - **考核集** `test-cases.json`（22 道）：只在阶段节点跑，不看错因、不针对它调整。术语和调参集相同，但换了问法和场景。
 - **重复运行**：`askdb.eval.repeat` 跑 N 次，汇总平均值和范围，并列出有时对有时错的题。对外报告的数字用考核集 3 次平均。每次评测的结果会存到 `eval-results/` 下，文件名带时间，包含准确率、平均耗时和平均输入 token，方便以后做"加功能前 vs 加功能后"的对比。
+
+## 多轮追问
+
+用户常常接着上一个问题问："RJ 州的客户一共支付了多少钱？"之后问"那 SP 州呢？"。
+
+做法是**先改写，再查询**：前端把同一对话里最近 3 个问题一起发给后端，`QuestionRewriter` 调一次模型，把当前问题改写成完整、独立的问题（"SP 州的客户一共支付了多少钱？"），之后的匹配术语、选表、找示例、生成 SQL 都用改写后的问题。
+
+为什么不直接把上文塞进生成 SQL 的提示词：
+
+- 选表和匹配术语是按问题里的关键词做的，"那 SP 州呢？"里没有"支付"，直接用会选错表
+- 改写结果会显示在页面上（"理解为：……"），模型理解错了用户一眼就能看出来
+- 缓存、示例库、调用日志都按改写后的问题记录：直接问和追问能命中同一个答案，标"对"时存进示例库的也是完整问题
+
+几点细节：
+
+- 发给后端的上文用的是前面问题**改写后**的版本，所以连续追问（"12 月呢？" → "其中 SP 州的呢？"）也能接上
+- 当前问题本身已经完整、和上文无关时，模型原样返回，不改写
+- 改写失败（比如模型超时）不影响提问，按原问题继续
+- 新对话不带上文
+- `askdb.followup.enabled=false` 可以关掉，对照组（baseline）里是关掉的
+
+评测：`eval/followup-cases.json` 有 12 道追问题，覆盖换地区、换时间、换指标、改 TOP N、连续追问、话题切换（不该改写）几种情况。
+
+## Agent 模式
+
+普通模式是固定流程：选好表、拼好提示词，模型一次写出 SQL。模型看得到表结构，但看不到数据，常见的错误是猜错字段的取值：支付方式存的是 `voucher` 还是"代金券"，州名存的是 `RJ` 还是全称。
+
+Agent 模式下，模型写 SQL 前可以自己调用三个工具（`AgentTools`）：
+
+| 工具 | 做什么 |
+|---|---|
+| `describe_tables` | 查看其他表的结构（选表漏掉了需要的表时用） |
+| `column_values` | 查看某一列最常见的 20 个取值和出现次数 |
+| `run_sql` | 试运行 SQL，返回行数和前 5 行，或者报错信息 |
+
+几个设计点：
+
+- **工具也走安全检查**：`column_values` 的表名、列名必须在库里真实存在才拼进 SQL；所有查询都经过 `SqlExecutor`，和正式查询一样有 `SqlGuard` 检查和只读账号。
+- **自己控制工具调用的循环**：没有用 Spring AI 自动执行工具，而是关掉自动执行（`internalToolExecutionEnabled(false)`），在 `SqlAgent` 里自己循环。这样能限制最多 8 轮，避免模型一直调用工具停不下来，也能把每一轮的 token 准确加起来。
+- **次数上限**：每个问题最多调用 6 次工具，用完后工具返回"请直接给出 SQL"。
+- **过程可见**：每次调用工具都会推送进度（"查看 order_payments.payment_type 的常见取值"），结果里也会记录，页面上能看到模型查了什么。
+
+默认关闭，`askdb.agent.enabled=true` 打开。代价是多几轮模型调用，耗时和 token 都会增加；值不值得，用评测对比"固定流程 vs Agent"的准确率、耗时和 token 来决定（`application-agent.yml`）。
+
+## 测试
+
+| 测试 | 内容 | 需要什么 |
+|---|---|---|
+| 单元测试 | SQL 安全检查、结果比较、选表、术语匹配、示例匹配、追问改写结果的清理、Agent 工具的白名单、限流等纯逻辑 | 什么都不需要 |
+| `MySqlIntegrationTest` | 在真实 MySQL 上验证三层防护（代码检查、驱动禁止多语句、只读账号改不了数据）、读取表结构和注释、Agent 工具 | Docker（用 Testcontainers 自动启动 MySQL，没有 Docker 时自动跳过） |
+| 前端测试 | 展示方式选择、数字格式、CSV、SQL 着色、报错提示、追问上文 | Node.js |
+
+每次推送到 GitHub，`.github/workflows/ci.yml` 会自动跑后端测试（包括 MySQL 集成测试）、前端测试和打包，并构建一次 Docker 镜像。
+

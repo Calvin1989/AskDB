@@ -39,7 +39,7 @@ public class QueryLogService {
         TokenUsage usage = r.usage();
         try {
             jdbcTemplate.update(INSERT_SQL,
-                    r.question(),
+                    r.effectiveQuestion(),
                     r.sql(),
                     r.status().name(),
                     truncate(r.error()),

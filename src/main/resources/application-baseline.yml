@@ -9,3 +9,7 @@ askdb:
     max-attempts: 0
   examples:
     enabled: false
+  followup:
+    enabled: false
+  agent:
+    enabled: false

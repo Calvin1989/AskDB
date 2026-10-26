@@ -1,0 +1,11 @@
+.git
+.idea
+.run
+target
+data
+eval-results
+askdb-web/node_modules
+src/main/resources/static
+askdb-local.yml
+askdb-llm.json
+.env

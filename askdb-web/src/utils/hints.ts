@@ -7,7 +7,7 @@ const HINTS: { pattern: RegExp; hint: string }[] = [
   { pattern: /\b401\b|Unauthorized|invalid.{0,10}api.?key|Incorrect API key/i, hint: '模型 API Key 无效：点左下角的"模型设置"重新填写。' },
   { pattern: /Communications link failure|Connection refused/i, hint: '连不上 MySQL：确认 MySQL 已经启动。' },
   { pattern: /\b429\b|rate.?limit/i, hint: '请求太频繁，被模型服务限流了，稍等一会儿再试。' },
-  { pattern: /Unknown database|doesn't exist/i, hint: '数据库或表不存在：确认已经按 README 导入过数据。' },
+  { pattern: /Unknown database|doesn't exist/i, hint: '数据库或表不存在：确认已经导入过数据（docs/development.md 第 3 步）。' },
 ]
 
 export function hintFor(error: string | null | undefined): string | null {

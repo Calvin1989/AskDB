@@ -120,6 +120,7 @@ function exportCsv() {
         <span v-if="answer.trace.terms.length">业务术语：{{ answer.trace.terms.join('、') }}</span>
         <span v-if="answer.trace.examples">参考了 {{ answer.trace.examples }} 条相似问题</span>
         <span v-if="answer.trace.corrections">根据报错自动修正了 {{ answer.trace.corrections }} 次</span>
+        <span v-if="answer.trace.toolCalls?.length">写 SQL 前查看了数据：{{ answer.trace.toolCalls.join('；') }}</span>
       </p>
 
       <p class="footnote">
