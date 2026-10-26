@@ -1,7 +1,7 @@
 # 三个阶段：打包前端 → 打包后端（前端文件放进 jar）→ 只带 JRE 运行，最终镜像不含 Node、Maven 和源码
 
 # 1. 前端：输出到 src/main/resources/static（见 askdb-web/vite.config.ts）
-FROM node:20-alpine AS web
+FROM node:22-alpine AS web
 WORKDIR /build/askdb-web
 COPY askdb-web/package.json askdb-web/package-lock.json ./
 RUN npm ci
